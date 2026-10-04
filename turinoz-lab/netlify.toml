@@ -1,0 +1,44 @@
+# TURINOZ / LAB — plain static site, no build step.
+[build]
+  publish = "."
+
+# Missing pages fall through to 404.html automatically.
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+
+# Fonts never change name, so cache them for a year.
+[[headers]]
+  for = "/assets/fonts/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+    Access-Control-Allow-Origin = "*"
+
+# Everything else uses Netlify's default (revalidate on every visit), so edits
+# to the list or styles show up as soon as you redeploy.
+
+# Pages always check for a new version (so phones pick up changes right away).
+[[headers]]
+  for = "/sphere/*"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/spectra/*"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/eye-planet/*"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+# The Eye & Planet fonts never change name either.
+[[headers]]
+  for = "/eye-planet/fonts/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

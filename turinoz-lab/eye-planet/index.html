@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Two interactive icons by Turinoz, built in Rive.">
+<title>Interactive Eye &amp; Planet Icons — TURINOZ / LAB</title>
+<meta name="theme-color" content="#07070b">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="TURINOZ / LAB">
+<meta property="og:title" content="Interactive Eye &amp; Planet Icons">
+<meta property="og:description" content="Two interactive icons by Turinoz, built in Rive.">
+<meta property="og:url" content="https://lab.turinoz.co/eye-planet/">
+<link rel="icon" href="../assets/img/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../assets/img/apple-touch-icon.png">
+<!-- Google tag (gtag.js), same property as the sphere -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-EPXGLQJL44"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-EPXGLQJL44');
+</script>
+<!-- Everything is served from this folder: fonts/ (OFL, see fonts/OFL.txt), vendor/ (Rive runtime), the two .riv files. -->
+<link rel="preload" href="fonts/jost-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/instrument-sans-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="eye_icon.riv" as="fetch" crossorigin>
+<link rel="preload" href="planet_icon.riv" as="fetch" crossorigin>
+<style>
+@font-face{font-family:"Instrument Sans";src:url(fonts/instrument-sans-400.woff2) format("woff2");font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:"Instrument Sans";src:url(fonts/instrument-sans-500.woff2) format("woff2");font-weight:500;font-style:normal;font-display:swap}
+@font-face{font-family:"Jost";src:url(fonts/jost-300.woff2) format("woff2");font-weight:300;font-style:normal;font-display:swap}
+@font-face{font-family:"Jost";src:url(fonts/jost-400.woff2) format("woff2");font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:"Martian Mono";src:url(fonts/martian-mono-400.woff2) format("woff2");font-weight:400;font-style:normal;font-display:swap}
+/* Layout: an airy intro (title left, file weight right, credits on a 4-column rule aligned
+   to the cards), then two specimen cards — live stage on top, gesture list below. */
+:root{
+  color-scheme: dark;
+  --ink:#07070b;          /* page */
+  --ink-2:#0b0b11;        /* card */
+  --hair:rgba(222,222,255,.08);
+  --hair-2:rgba(222,222,255,.15);
+  --fg:#ededf3;
+  --fg-2:#a3a3b5;
+  --fg-3:#686880;
+  --eye-a:#14c8f2; --eye-b:#22be6c;   /* eye_icon.riv colorA → colorB */
+  --pl-a:#6e44d4;  --pl-b:#e21a52;    /* planet_icon.riv colorA → colorB */
+  --spectrum:linear-gradient(90deg,var(--eye-b) 0%,var(--eye-a) 34%,var(--pl-a) 68%,var(--pl-b) 100%);
+
+  --f-display:"Jost","Futura","Avenir Next",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"Instrument Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"Martian Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+
+  --gutter:clamp(16px,4vw,48px);
+  --gap:clamp(16px,2vw,24px);
+  --radius:20px;
+  --inset:20px;           /* shared inner edge: HUD, gesture rows */
+}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--ink);color:var(--fg);font:400 16px/1.6 var(--f-body);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:inherit}
+::selection{background:rgba(20,200,242,.3)}
+.wrap{max-width:1280px;margin:0 auto;padding-inline:var(--gutter)}
+/* Desktop reads like the browser is at 60%: a smaller, calmer page with room around it. */
+@media (min-width:1100px){.wrap{zoom:.6}}
+
+/* ---------- top bar ---------- */
+.top{display:flex;justify-content:space-between;align-items:center;gap:16px;padding-block:24px;border-bottom:1px solid var(--hair);font:400 10.5px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase}
+.brand{text-decoration:none;color:var(--fg)}
+.brand span{color:var(--fg-3);margin-inline:.35em}
+.top nav{display:flex;align-items:center;gap:22px;color:var(--fg-3)}
+.top nav a{color:var(--fg-2);text-decoration:none;transition:color .2s}
+.top nav a:hover,.top nav a:focus-visible{color:var(--fg)}
+@media (max-width:520px){.top .hide-s{display:none}}
+
+/* ---------- intro ---------- */
+.intro{padding-top:clamp(32px,4vw,64px)}
+.eyebrow{display:flex;align-items:center;gap:14px;margin:0 0 clamp(22px,2.6vw,34px);font:400 10.5px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--fg-3)}
+.eyebrow::before{content:"";width:28px;height:1px;background:var(--spectrum)}
+.intro-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,21rem);gap:40px clamp(40px,8vw,120px);align-items:end}
+.intro h1{margin:0;font:400 clamp(2.4rem,4.6vw,3.6rem)/1 var(--f-display);letter-spacing:-.025em}
+.lead{margin:clamp(18px,2vw,24px) 0 0;max-width:44ch;font-size:clamp(1rem,1.3vw,1.125rem);line-height:1.65;color:var(--fg-2)}
+
+.weight{margin:0;display:grid;gap:14px}
+.kb{display:flex;align-items:baseline;gap:.35em;width:max-content;font:400 clamp(2.6rem,4.8vw,3.8rem)/.9 var(--f-mono);letter-spacing:-.04em;
+  background:var(--spectrum);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+.kb span{font-size:.36em;letter-spacing:.06em}
+.weight figcaption{font:400 10.5px/1.6 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--fg-3)}
+.split{display:flex;gap:3px;height:3px;margin-top:6px}
+.split i{border-radius:2px}
+.split .s-eye{flex:21.2;background:linear-gradient(90deg,var(--eye-b),var(--eye-a))}
+.split .s-pl{flex:14.7;background:linear-gradient(90deg,var(--pl-a),var(--pl-b))}
+.split-l{display:flex;gap:3px;margin-top:-4px;font:400 10px/1.4 var(--f-mono);letter-spacing:.06em;color:var(--fg-3)}
+.split-l span:first-child{flex:21.2}
+.split-l span:last-child{flex:14.7}
+.split-l b{font-weight:400;color:var(--fg-2)}
+
+.meta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:22px var(--gap);margin:clamp(32px,4vw,64px) 0 0;padding-top:20px;border-top:1px solid var(--hair)}
+.meta div{min-width:0}
+.meta dt{margin-bottom:8px;font:400 10px/1.4 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--fg-3)}
+.meta dd{margin:0;font-size:15px;line-height:1.4;color:var(--fg)}
+.meta a{text-decoration:none;border-bottom:1px solid var(--hair-2);transition:border-color .2s}
+.meta a:hover,.meta a:focus-visible{border-color:var(--fg)}
+.meta .dim{color:var(--fg-2)}
+
+@media (max-width:760px){
+  .intro-grid{grid-template-columns:minmax(0,1fr)}
+  .meta{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+/* ---------- specimen cards ---------- */
+.stages{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--gap);margin-top:clamp(28px,3vw,40px)}
+@media (max-width:880px){.stages{grid-template-columns:minmax(0,1fr)}.specimen{width:100%;max-width:640px;margin-inline:auto}}
+.specimen{min-width:0;border:1px solid var(--hair);border-radius:var(--radius);background:var(--ink-2);overflow:hidden}
+.specimen[data-kind=eye]{--c1:var(--eye-a);--c2:var(--eye-b)}
+.specimen[data-kind=planet]{--c1:var(--pl-a);--c2:var(--pl-b)}
+
+.stage{position:relative;aspect-ratio:1/1;overflow:hidden;isolation:isolate;background:#000;border-bottom:1px solid var(--hair);clip-path:inset(0 round var(--radius) var(--radius) 0 0);transform:translateZ(0);touch-action:pan-y;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;outline:none}
+.stage[data-stage=eye]{cursor:crosshair}
+.stage[data-stage=planet]{cursor:grab}
+.stage[data-stage=planet].is-held{cursor:grabbing}
+.stage:focus-visible{box-shadow:inset 0 0 0 1px var(--fg-2)}
+.stage canvas{position:absolute;inset:0;z-index:2;width:100%;height:100%;display:block;pointer-events:none;opacity:0;transition:opacity .9s ease;background:transparent}
+.stage.is-live canvas{opacity:1}
+
+.hud{position:absolute;z-index:3;pointer-events:none;display:flex;align-items:center;gap:10px;font:400 10px/1.35 var(--f-mono);letter-spacing:.04em;color:var(--fg-3)}
+.hud.tl{top:18px;left:var(--inset)}
+.hud.tr{top:22px;right:var(--inset);text-align:right}
+.hud.bl{bottom:18px;left:var(--inset);display:block;white-space:pre;color:var(--fg-2)}
+.hud.br{bottom:16px;right:var(--inset);display:grid;justify-items:end;gap:4px;text-align:right}
+.hud.br b{font:400 16px/1 var(--f-mono);letter-spacing:.01em;background:linear-gradient(90deg,var(--c1),var(--c2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+.hud.br b small{font-size:.7em;margin-left:.3em}
+.hud.br span{letter-spacing:.06em}
+.hud h3{margin:0;font:400 1.45rem/1 var(--f-display);letter-spacing:-.01em;color:var(--fg)}
+.chip{display:inline-flex;align-items:center;gap:7px;padding:4px 9px 4px 8px;border:1px solid var(--hair-2);border-radius:999px;background:rgba(7,7,11,.55);color:var(--fg-2)}
+.chip i{width:6px;height:6px;border-radius:50%;background:linear-gradient(135deg,var(--c1),var(--c2))}
+.chip[data-dim] i{background:var(--fg-3)}
+.hud .n{color:var(--fg)}
+.msg{position:absolute;z-index:3;left:50%;bottom:22%;transform:translateX(-50%);margin:0;width:max-content;max-width:80%;text-align:center;font:400 10.5px/1.5 var(--f-mono);letter-spacing:.04em;color:var(--fg-3);transition:opacity .5s}
+.stage.is-live .msg{opacity:0}
+.is-failed .msg{color:var(--fg-2)}
+@media (max-width:520px){.hud.br b{font-size:13px}.hud h3{font-size:1.2rem}.hud.tr{top:21px}}
+
+/* gesture rows: one fixed label column so both cards line up, one line each */
+.gestures{list-style:none;margin:0;padding:6px var(--inset) 8px}
+.gestures li{display:grid;grid-template-columns:7.25rem minmax(0,1fr);align-items:center;gap:16px;min-height:50px;padding:10px 0}
+.gestures li + li{border-top:1px solid var(--hair)}
+.gestures .k{display:flex;align-items:center;gap:10px;height:1.45em;font:400 10px/1 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--fg-2);white-space:nowrap}
+.gestures .k::before{content:"";flex:none;width:5px;height:5px;border-radius:50%;background:linear-gradient(135deg,var(--c1),var(--c2))}
+.gestures .d{font-size:15px;line-height:1.45;color:var(--fg-2)}
+@media (max-width:520px){.gestures li{grid-template-columns:minmax(0,1fr);gap:6px;padding:13px 0}.gestures .d{font-size:14.5px}}
+
+/* ---------- footer ---------- */
+.foot{display:flex;justify-content:space-between;gap:12px 24px;flex-wrap:wrap;margin-top:clamp(96px,12vw,168px);padding-block:26px 44px;border-top:1px solid var(--hair);font:400 10.5px/1.6 var(--f-mono);letter-spacing:.06em;color:var(--fg-3)}
+.foot a{color:var(--fg-2);text-decoration:none}
+.foot a:hover,.foot a:focus-visible{color:var(--fg)}
+
+@media (prefers-reduced-motion:reduce){.stage canvas{transition:none}}
+
+/* ---------- cursor (ring, same behaviour as the sphere) ---------- */
+#cursor{position:fixed;top:0;left:0;width:19.2px;height:19.2px;margin:-9.6px;pointer-events:none;z-index:1000;opacity:0;transition:opacity 120ms}
+#cursor.visible{opacity:1}
+#cursor i{position:relative;display:block;width:100%;height:100%;border:1px solid #f3f0e9;border-radius:50%;transform:scale(1);transition:transform 260ms cubic-bezier(.22,1.5,.4,1),background-color 120ms}
+#cursor i::after{content:"";position:absolute;inset:4.8px;background:#fff;border-radius:50%;opacity:0;transform:scale(.4);transition:opacity 100ms,transform 140ms}
+#cursor.over i{transform:scale(1.13)}
+#cursor.down i{transform:scale(.78);background:#ffffff24;transition-duration:65ms}
+#cursor.down i::after{opacity:.7;transform:scale(1)}
+@media (pointer:fine){
+  html.cursor-on,html.cursor-on *{cursor:none !important}
+}
+@media (pointer:coarse){#cursor{display:none}}
+
+@media (prefers-reduced-motion:reduce){#cursor i,#cursor i::after{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="../">Turinoz<span>/</span>Lab</a>
+    <nav aria-label="Site">
+      <span class="hide-s">Interactive icons</span>
+      <a href="https://turinoz.co" target="_blank" rel="noopener">turinoz.co ↗</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="intro" aria-labelledby="play-h">
+      <p class="eyebrow">Two interactive icons · Rive &amp; Luau</p>
+      <div class="intro-grid">
+        <div>
+          <h1 id="play-h">Play with them</h1>
+          <p class="lead">An eye and a planet. Both react to your pointer from anywhere on the page, not only inside the frame.</p>
+        </div>
+        <figure class="weight">
+          <div class="kb" aria-label="35.9 kilobytes"><b>35.9</b><span>KB</span></div>
+          <figcaption>Two .riv files · every motion included</figcaption>
+          <div class="split" aria-hidden="true"><i class="s-eye"></i><i class="s-pl"></i></div>
+          <div class="split-l"><span>eye <b>21.2</b></span><span>planet <b>14.7</b></span></div>
+        </figure>
+      </div>
+
+      <dl class="meta">
+        <div><dt>Icon design</dt><dd><a href="https://dribbble.com/lucasfields" target="_blank" rel="noopener">Lucas Fields ↗</a></dd></div>
+        <div><dt>Motion &amp; interaction</dt><dd><a href="https://turinoz.co" target="_blank" rel="noopener">Turinoz ↗</a></dd></div>
+        <div><dt>Built with</dt><dd class="dim">Rive</dd></div>
+        <div><dt>Runtime</dt><dd class="dim">Rive WebGL2 2.43.1</dd></div>
+      </dl>
+
+      <div class="stages">
+        <article class="specimen" data-kind="eye">
+          <div class="stage" data-stage="eye" tabindex="0" role="group" aria-label="Eye icon. It follows your pointer. Press Enter to poke it.">
+            <canvas></canvas>
+            <div class="hud tl"><h3>Eye</h3><span class="chip" id="eyeChip"><i></i><span>waking</span></span></div>
+            <div class="hud tr" id="eyeCount">eye contact <span class="n">0.0 s</span></div>
+            <div class="hud bl" id="eyeTele">waiting for a pointer
+gaze 0 0</div>
+            <div class="hud br"><b>21.2<small>KB</small></b><span>eye_icon.riv</span></div>
+            <p class="msg" data-msg>Loading the Rive runtime…</p>
+          </div>
+          <ul class="gestures" aria-label="Eye gestures">
+            <li><span class="k">Move</span><span class="d">Its gaze follows you anywhere on the page.</span></li>
+            <li><span class="k">Hover</span><span class="d">The lids open a little wider.</span></li>
+            <li><span class="k">Press</span><span class="d">The iris tightens and a ring ripples out.</span></li>
+            <li><span class="k">Release</span><span class="d">It blinks as the star finishes a quarter turn.</span></li>
+            <li><span class="k">Stay still</span><span class="d">After 3.5 s it gets bored and looks around.</span></li>
+          </ul>
+        </article>
+
+        <article class="specimen" data-kind="planet">
+          <div class="stage" data-stage="planet" tabindex="0" role="group" aria-label="Planet icon. Drag sideways to spin it. Press Enter to flick it.">
+            <canvas></canvas>
+            <div class="hud tl"><h3>Planet</h3><span class="chip" id="plChip"><i></i><span>waking</span></span></div>
+            <div class="hud tr" id="plCount">spins <span class="n">0</span> · throws <span class="n">0</span></div>
+            <div class="hud bl" id="plTele">waiting for a pointer
+at rest · tilt 16.8°</div>
+            <div class="hud br"><b>14.7<small>KB</small></b><span>planet_icon.riv</span></div>
+            <p class="msg" data-msg>Loading the Rive runtime…</p>
+          </div>
+          <ul class="gestures" aria-label="Planet gestures">
+            <li><span class="k">Move</span><span class="d">The ring tilts toward your pointer.</span></li>
+            <li><span class="k">Hover</span><span class="d">Its own spin waits while you’re close.</span></li>
+            <li><span class="k">Tap</span><span class="d">A quick tap flicks it into a spin.</span></li>
+            <li><span class="k">Drag</span><span class="d">Spin it by hand, let go to throw it.</span></li>
+            <li><span class="k">Leave it</span><span class="d">It turns half a revolution on its own.</span></li>
+          </ul>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>Turinoz / Lab · 2026</span>
+    <span>Rendered live with the Rive WebGL2 runtime</span>
+  </footer>
+</div>
+
+<div id="cursor" aria-hidden="true"><i></i></div>
+
+<script src="vendor/rive.js"></script>
+<script>
+(() => {
+  'use strict';
+  const FILES = { eye: 'eye_icon.riv', planet: 'planet_icon.riv' };   // next to this page
+  // Values read from the scripts: script-unit scale (size / UNIT) and hit radius.
+  const SPEC = {
+    eye:    { scale: 150 / 354, hit: 221.25, R: 177 },
+    planet: { scale: 150 / 350, hit: 250,    R: 175 },
+  };
+  const ART = 500;                         // both artboards are 500 × 500, icon at the center
+  const $  = (s, el = document) => el.querySelector(s);
+  const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
+  const insts = [];
+  let eyeO = null, planetO = null;
+
+  const ptr = { x: 0, y: 0, t: -1e9, on: false, type: 'mouse', ever: false };
+  const P = { down: false, drag: false, travel: 0, t0: 0, lx: 0, ly: 0, spins: 0, throws: 0, flash: -1e9, flashLabel: '' };
+  let eyePoked = false, contact = 0;
+  const TAU = Math.PI * 2;
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- geometry ---------- */
+  function geom(o) {
+    const r = o.canvas.getBoundingClientRect();
+    return { cx: r.left + r.width / 2, cy: r.top + r.height / 2, ppu: Math.min(r.width, r.height) * o.zoom / ART };
+  }
+  function local(o, x, y) {                // client px → the script's own units
+    const g = geom(o), s = SPEC[o.kind].scale;
+    return { x: (x - g.cx) / g.ppu / s, y: (y - g.cy) / g.ppu / s };
+  }
+  function fit(o) {
+    const c = o.canvas, cw = c.clientWidth, ch = c.clientHeight;   // layout size, ignores CSS transforms
+    if (!cw || !ch) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.round(cw * dpr), h = Math.round(ch * dpr);
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    if (!o.r || !o.ready) return;
+    // Draw the artboard zoomed: a square frame larger than the canvas, centered.
+    const s = Math.min(w, h) * o.zoom;
+    o.r.layout = new rive.Layout({ fit: rive.Fit.Contain, alignment: rive.Alignment.Center,
+      minX: (w - s) / 2, minY: (h - s) / 2, maxX: (w + s) / 2, maxY: (h + s) / 2 });
+    o.r._needsRedraw = true;
+  }
+
+  /* ---------- pointer forwarding ---------- */
+  // Canvases ignore the real pointer; every instance hears the whole page instead.
+  function send(o, type, x, y) {
+    if (!o.ready || !o.on) return;
+    const r = o.canvas.getBoundingClientRect();
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    // The runtime maps pointers as if the artboard filled the canvas, so undo the zoom.
+    let X = cx + (x - cx) / o.zoom, Y = cy + (y - cy) / o.zoom;
+    if (!X && !Y) X = 0.01;
+    o.canvas.dispatchEvent(new MouseEvent(type, { clientX: X, clientY: Y }));
+  }
+  const all = (type, x, y) => insts.forEach(o => { if (!o.solo) send(o, type, x, y); });
+  const inRect = (node, x, y) => { if (!node) return false; const r = node.getBoundingClientRect(); return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom; };
+  const within = (o, x, y) => { if (!o || !o.ready) return false; const p = local(o, x, y); return Math.hypot(p.x, p.y) <= SPEC[o.kind].hit; };
+
+  function onMove(e) {
+    ptr.x = e.clientX; ptr.y = e.clientY; ptr.t = performance.now(); ptr.on = true; ptr.ever = true; ptr.type = e.pointerType || 'mouse';
+    all('mousemove', ptr.x, ptr.y);
+    if (P.down && planetO) {
+      const p = local(planetO, ptr.x, ptr.y);
+      P.travel += Math.abs(p.x - P.lx) + Math.abs(p.y - P.ly);
+      P.lx = p.x; P.ly = p.y;
+      if (P.travel > 6) P.drag = true;
+    }
+  }
+  function onDown(e) {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    onMove(e);
+    all('mousedown', ptr.x, ptr.y);
+    eyePoked = insts.some(o => o.kind === 'eye' && within(o, ptr.x, ptr.y));
+    if (within(planetO, ptr.x, ptr.y)) {
+      const p = local(planetO, ptr.x, ptr.y);
+      Object.assign(P, { down: true, drag: false, travel: 0, t0: performance.now(), lx: p.x, ly: p.y });
+    }
+  }
+  function onUp(e, cancelled) {
+    const x = e.clientX, y = e.clientY;
+    if (!cancelled) all('mouseup', x, y);
+    if (P.down) {
+      P.down = false;
+      const now = performance.now();
+      if (P.drag) { P.throws++; P.flash = now; P.flashLabel = 'thrown'; }
+      else if (!cancelled && now - P.t0 < 350) { P.spins++; P.flash = now; P.flashLabel = 'spinning'; }
+    }
+    eyePoked = false;
+    if (cancelled || e.pointerType !== 'mouse') { all('mouseout', x, y); ptr.on = false; }
+  }
+  function onLeave(x, y) { if (!ptr.on) return; ptr.on = false; all('mouseout', x, y); }
+
+  addEventListener('pointermove', onMove, { passive: true });
+  addEventListener('pointerdown', onDown, { passive: true });
+  addEventListener('pointerup', e => onUp(e, false), { passive: true });
+  addEventListener('pointercancel', e => onUp(e, true), { passive: true });
+  document.documentElement.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') onLeave(e.clientX, e.clientY); });
+  addEventListener('mouseout', e => { if (!e.relatedTarget) onLeave(e.clientX, e.clientY); });
+  addEventListener('blur', () => onLeave(ptr.x, ptr.y));
+  // Keep the gaze locked on a still cursor while the page scrolls underneath it.
+  let scrollQueued = false;
+  addEventListener('scroll', () => {
+    if (!ptr.on || ptr.type !== 'mouse' || scrollQueued) return;
+    scrollQueued = true;
+    requestAnimationFrame(() => { scrollQueued = false; ptr.t = performance.now(); all('mousemove', ptr.x, ptr.y); });
+  }, { passive: true });
+
+  $$('[data-stage]').forEach(stage => {
+    stage.addEventListener('mousedown', e => e.preventDefault());
+    stage.addEventListener('keydown', e => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      if (e.repeat) return;
+      const o = insts.find(i => i.host === stage);
+      if (!o || !o.ready) return;
+      const g = geom(o), x = g.cx + 0.5, y = g.cy + 0.5;
+      send(o, 'mousemove', x, y); send(o, 'mousedown', x, y);
+      if (o.kind === 'eye') eyePoked = true;
+      setTimeout(() => {
+        send(o, 'mouseup', x, y);
+        eyePoked = false;
+        if (o.kind === 'planet') { P.spins++; P.flash = performance.now(); P.flashLabel = 'spinning'; }
+      }, o.kind === 'eye' ? 280 : 90);
+    });
+  });
+
+  /* ---------- rive instances ---------- */
+  const ro = new ResizeObserver(entries => entries.forEach(en => { const o = insts.find(i => i.canvas === en.target); if (o) fit(o); }));
+  const io = new IntersectionObserver(entries => entries.forEach(en => insts.filter(o => o.host === en.target).forEach(o => {
+    o.on = en.isIntersecting;
+    if (!o.ready) return;
+    if (o.on) { o.r.play(); if (ptr.on) send(o, 'mousemove', ptr.x, ptr.y); } else o.r.pause();   // rest while off screen
+  })), { rootMargin: '160px 0px' });
+
+  function fail(host, text) {
+    host.classList.add('is-failed');
+    const m = host.querySelector('[data-msg]');
+    if (m && text) m.textContent = text;
+  }
+
+  function make(canvas, kind, view, host, solo) {
+    // view = how many artboard units span the canvas; the icon itself is 150 units wide.
+    const o = { canvas, kind, host, solo: !!solo, zoom: ART / view, r: null, ready: false, on: true };
+    fit(o);
+    insts.push(o);
+    try {
+      o.r = new rive.Rive({
+        src: FILES[kind],
+        canvas,
+        autoplay: true,
+        stateMachine: 'State Machine 1',
+        onLoad: () => {
+          o.ready = true;
+          o.r.resizeDrawingSurfaceToCanvas = () => fit(o);
+          fit(o);
+          canvas.parentElement.classList.add('is-live');
+          if (!o.on) o.r.pause();
+          else if (ptr.on) send(o, 'mousemove', ptr.x, ptr.y);
+        },
+        onLoadError: () => fail(host, 'This file couldn’t be loaded.'),
+      });
+    } catch (err) {
+      fail(host, 'The icon couldn’t start in this browser.');
+    }
+    ro.observe(canvas);
+    io.observe(host);
+    return o;
+  }
+
+  /* ---------- HUD ---------- */
+  const el = {
+    eyeStage: $('[data-stage=eye]'), plStage: $('[data-stage=planet]'),
+    eyeChip: $('#eyeChip'), eyeChipT: $('#eyeChip span'), eyeCount: $('#eyeCount .n'), eyeTele: $('#eyeTele'),
+    plChip: $('#plChip'), plChipT: $('#plChip span'), plCount: $$('#plCount .n'), plTele: $('#plTele'),
+  };
+  const cache = new Map();
+  function put(node, key, value, prop = 'textContent') {
+    if (cache.get(key) === value) return;
+    cache.set(key, value);
+    if (prop === 'textContent') node.textContent = value; else node.setAttribute(prop, value);
+  }
+  const num = (v, w) => { const n = Math.round(v); return (n < 0 ? '−' + Math.abs(n) : String(n)).padStart(w, ' '); };
+  const touchy = matchMedia('(hover: none)').matches;
+
+  function gazeOf(x, y) {                   // mirrors track() in the eye script
+    const d = Math.hypot(x, y), R = 177, HIT = 221.25;
+    if (d < 1e-3) return [0, 0];
+    const k = d <= HIT ? Math.min(d / (R * 1.1), 1) : 0.6 + 0.4 * Math.exp(-(d - HIT) / (R * 0.15));
+    return [x / d * 58 * k, y / d * 38 * k];
+  }
+
+  let last = performance.now();
+  function tick(now) {
+    const dt = Math.min((now - last) / 1000, 0.1);
+    last = now;
+    const bored = !ptr.on || now - ptr.t > 3500;   // same 3.5 s rule as the eye script
+
+    // eye stage
+    if (eyeO && eyeO.ready) {
+      let t1 = touchy ? 'touch to measure' : 'waiting for a pointer', t2 = 'gaze 0 0', near = false;
+      if (ptr.on) {
+        const p = local(eyeO, ptr.x, ptr.y), d = Math.hypot(p.x, p.y), g = gazeOf(p.x, p.y);
+        near = d <= SPEC.eye.hit;
+        t1 = `x ${num(p.x, 4)}  y ${num(p.y, 4)}  d ${num(d, 4)}`;
+        t2 = `${near ? 'near' : 'far '} · gaze ${num(g[0], 3)} ${num(g[1], 3)}`;
+        if (near) contact += dt;
+      }
+      put(el.eyeTele, 'eyeTele', t1 + '\n' + t2);
+      put(el.eyeCount, 'eyeCount', contact.toFixed(1) + ' s');
+      const st = eyePoked && within(eyeO, ptr.x, ptr.y) ? 'poked' : bored ? 'daydreaming' : 'watching';
+      put(el.eyeChipT, 'eyeChip', st);
+      el.eyeChip.toggleAttribute('data-dim', st === 'daydreaming');
+    }
+
+    // planet stage
+    if (planetO && planetO.ready) {
+      let t1 = touchy ? 'touch to measure' : 'waiting for a pointer', t2 = 'at rest · tilt 16.8°', close = false;
+      if (ptr.on) {
+        const p = local(planetO, ptr.x, ptr.y), d = Math.hypot(p.x, p.y);
+        close = d <= SPEC.planet.hit;
+        const eps = 0.2934 - Math.tanh(p.y / (SPEC.planet.R * 1.6)) * 0.3;   // mirrors epsT in the planet script
+        t1 = `x ${num(p.x, 4)}  y ${num(p.y, 4)}  d ${num(d, 4)}`;
+        t2 = `${close ? 'in reach' : 'far     '} · tilt ${(eps * 180 / Math.PI).toFixed(1)}°`;
+      }
+      put(el.plTele, 'plTele', t1 + '\n' + t2);
+      let st = 'orbiting';
+      if (P.down) st = P.drag ? 'dragging' : 'held';
+      else if (now - P.flash < 1400) st = P.flashLabel;
+      else if (close) st = 'waiting';
+      put(el.plChipT, 'plChip', st);
+      el.plChip.toggleAttribute('data-dim', st === 'orbiting');
+      put(el.plCount[0], 'spins', String(P.spins));
+      put(el.plCount[1], 'throws', String(P.throws));
+      el.plStage.classList.toggle('is-held', P.down);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  /* ---------- boot ---------- */
+  function boot() {
+    const eyeStage = $('[data-stage=eye]'), plStage = $('[data-stage=planet]');
+    let gl = false;
+    try { gl = !!document.createElement('canvas').getContext('webgl2'); } catch (e) { gl = false; }
+    if (!window.rive || !gl) {
+      const text = !window.rive ? 'The Rive runtime didn’t load. Check your connection and reload.' : 'This browser can’t run WebGL2, so the icon can’t draw here.';
+      fail(eyeStage, text); fail(plStage, text);
+      return;
+    }
+    // The runtime's WebAssembly lives in vendor/ next to it (no CDN).
+    rive.RuntimeLoader.setWasmUrl(new URL('vendor/rive.wasm', location.href).href);
+    rive.RuntimeLoader.setWasmFallbackUrl(new URL('vendor/rive_fallback.wasm', location.href).href);
+    eyeO = make($('canvas', eyeStage), 'eye', 375, eyeStage);
+    planetO = make($('canvas', plStage), 'planet', 375, plStage);
+    requestAnimationFrame(tick);
+  }
+  /* ---------- cursor: ring replaces the system pointer (same as the sphere) ---------- */
+  const rootEl = document.documentElement;
+  const cursorEl = $('#cursor');
+  const mouseLike = e => e.pointerType !== 'touch';
+  function showRing(on) {
+    cursorEl.classList.toggle('visible', on);
+    cursorEl.classList.toggle('over', on);
+    if (!on) cursorEl.classList.remove('down');
+  }
+  function moveRing(e) { cursorEl.style.transform = `translate3d(${e.clientX}px,${e.clientY}px,0)`; }
+  addEventListener('pointermove', e => {
+    if (!mouseLike(e)) return;
+    rootEl.classList.add('cursor-on');            // the native pointer is only hidden once a mouse is seen
+    moveRing(e);
+    showRing(true);
+  }, { passive: true });
+  addEventListener('pointerdown', e => {
+    if (!mouseLike(e) || e.button !== 0) return;
+    moveRing(e);
+    cursorEl.classList.add('down');
+  }, { passive: true });
+  addEventListener('pointerup', () => cursorEl.classList.remove('down'), { passive: true });
+  addEventListener('pointercancel', () => cursorEl.classList.remove('down'), { passive: true });
+  rootEl.addEventListener('pointerleave', e => { if (mouseLike(e)) showRing(false); });
+  addEventListener('mouseout', e => { if (!e.relatedTarget) showRing(false); });
+  addEventListener('blur', () => showRing(false));
+  document.addEventListener('visibilitychange', () => { if (document.hidden) showRing(false); });
+
+  boot();
+})();
+</script>
+</body>
+</html>

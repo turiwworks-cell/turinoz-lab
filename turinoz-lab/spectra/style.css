@@ -1,0 +1,72 @@
+/* Host page for spectra.riv: stage layout, cursor handoff and recording controls. */
+
+html, body { margin: 0; height: 100%; }
+body {
+  background: #0b0b0c;
+  overflow: hidden;
+  cursor: var(--cursor, default);
+  -webkit-tap-highlight-color: transparent;
+}
+
+canvas {
+  position: fixed;
+  display: block;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
+}
+/* spectra.riv draws its own cursor (CURSOR.on) and expects the host to hide the system one. */
+canvas.live { cursor: none; }
+
+.bar {
+  position: fixed;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgb(22 22 24 / 0.92);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08);
+  color: #f6f5f2;
+  font: 500 12px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: background-color 0.2s, box-shadow 0.2s;
+}
+.bar > * { transition: opacity 0.2s, visibility 0.2s; }
+.bar button {
+  all: unset;
+  cursor: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 999px;
+}
+.bar button:hover { background: rgb(255 255 255 / 0.07); }
+.bar button:focus-visible { box-shadow: inset 0 0 0 2px rgb(255 255 255 / 0.5); }
+.bar button:disabled { opacity: 0.4; background: none; }
+.readout { padding: 0 10px; color: #82817b; }
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #e03131;
+  transition: border-radius 0.15s;
+}
+.recording .dot { border-radius: 2px; animation: pulse 1.2s ease-in-out infinite; }
+.recording #time { color: #f6f5f2; }
+@keyframes pulse { 50% { opacity: 0.45; } }
+
+/* Clean mode: only the toggle stays, invisible until hovered or focused. */
+.clean .bar { background: transparent; box-shadow: none; }
+.clean .bar > :not(#toggle) { opacity: 0; visibility: hidden; }
+.clean #toggle { opacity: 0; }
+.clean #toggle:hover, .clean #toggle:focus-visible { opacity: 0.6; }

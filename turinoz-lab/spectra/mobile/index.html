@@ -1,0 +1,964 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Spectra</title>
+<meta name="description" content="Two seconds with a colour. Rebuild it from memory.">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root { --bg: #0b0b0c; }
+  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden;
+    -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none; }
+  canvas { display: block; width: 100vw; height: 100vh; height: 100dvh; touch-action: none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+"use strict";
+// =============================================================================
+// SPECTRA / Mobile — plain canvas build of the Rive script, for a Telegram Mini App.
+// A run is three colours: READY → LOOK (2 s) → MIX → RESULT → REVEAL, ×3 → SUMMARY.
+// SUMMARY shares a challenge link: same three colours, and the friend sees your guesses.
+// =============================================================================
+
+// Your bot's username without the @ (e.g. "spectra_colour_bot"). Challenge links open
+// inside Telegram when this is set; left empty, they open this page in the browser.
+const BOT_USERNAME = "colplaybot";
+const RUN_LENGTH = 3;
+
+const W = 390, H = 820;
+const LOOK_SECONDS = 2.1, EXIT_SECONDS = 0.34;
+const FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+
+const L = {
+  rx: 24, rw: 342,
+  big:   { cx: 195, cy: 252, s: 282, r: 34 },
+  pairA: { cx: 104, cy: 192, s: 160, r: 24 },
+  pairB: { cx: 286, cy: 192, s: 160, r: 24 },
+  pairLabel: 298, heading: 476,
+  bar: { x: 56, y: 410, w: 278 },
+  rowTop: 426, rowGap: 92, trackOffset: 26, trackH: 40, inset: 13,
+  score: 402, driftTop: 466, driftGap: 56, diagTop: 650,
+  seg: { x: 275, y: 24, w: 91, h: 42 },
+  button: { cx: 195, cy: 756, h: 56, pad: 32, minW: 342 },
+  card: { x: 22, y: 176, w: 292, h: 340, r: 28, dx: 18, dy: 22 },
+  footer: 806,
+  button2: { cx: 195, cy: 690, w: 342, h: 52 },
+  sum: { label: 118, score: 196, rows: 290, rowH: 96 },
+};
+const FEEL = {
+  soft: [170, 26], snap: [520, 40], bounce: [620, 26], glide: [900, 60], theme: [110, 21], count: [55, 14.8],
+};
+const DARK = {
+  ground: [11, 11, 12], surface: [22, 22, 24], card: [27, 27, 30],
+  ink: [246, 245, 242], muted: [130, 129, 123], faint: [74, 74, 71],
+  chip: [255, 255, 255], onchip: [11, 11, 12], shadow: [0, 0, 0],
+  ringA: 0.08, shadowA: 0.55, capA: 0.40,
+};
+const LIGHT = {
+  ground: [241, 240, 235], surface: [255, 255, 255], card: [255, 255, 255],
+  ink: [19, 19, 18], muted: [119, 118, 110], faint: [186, 185, 178],
+  chip: [19, 19, 18], onchip: [255, 255, 255], shadow: [22, 22, 26],
+  ringA: 0.08, shadowA: 0.20, capA: 0.22,
+};
+const COLOURS = [
+  ["Crimson", 224, 49, 49], ["Scarlet", 235, 72, 54], ["Coral", 246, 124, 94],
+  ["Rust", 176, 78, 36], ["Amber", 240, 168, 40], ["Ochre", 214, 158, 62],
+  ["Lemon", 232, 214, 84], ["Sand", 212, 192, 154], ["Olive", 134, 142, 68],
+  ["Moss", 104, 138, 62], ["Forest", 46, 108, 76], ["Emerald", 40, 172, 112],
+  ["Mint", 122, 202, 166], ["Teal", 28, 150, 152], ["Cyan", 52, 184, 218],
+  ["Azure", 58, 134, 236], ["Cobalt", 44, 76, 198], ["Indigo", 78, 68, 178],
+  ["Violet", 124, 84, 226], ["Orchid", 172, 100, 198], ["Magenta", 210, 72, 152],
+  ["Rose", 238, 106, 140], ["Plum", 112, 62, 96], ["Slate", 96, 110, 124],
+];
+const VERDICTS = [[0.90, "REMARKABLE"], [0.78, "SHARP"], [0.62, "CLOSE"], [0.42, "ROUGH"], [0, "WIDE"]];
+const FAMILIES = [
+  [0, "red"], [18, "vermilion"], [38, "orange"], [52, "amber"], [62, "yellow"],
+  [80, "chartreuse"], [110, "green"], [150, "jade"], [175, "teal"], [195, "cyan"],
+  [215, "azure"], [240, "blue"], [262, "indigo"], [282, "violet"], [305, "magenta"],
+  [330, "rose"], [350, "crimson"],
+];
+const CARDS = { keep: 8, show: 4, fanDx: 24, fanDy: 30, fanRot: 3.5, throw: 70 };
+const DEG = "°";
+
+// ---- maths -------------------------------------------------------------------
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const mix = (a, b, t) => a + (b - a) * t;
+const round = (v) => Math.floor(v + 0.5);
+const mix3 = (a, b, t) => [mix(a[0], b[0], t), mix(a[1], b[1], t), mix(a[2], b[2], t)];
+let GA = 1;
+const col = (c, a = 1) => `rgba(${round(clamp(c[0], 0, 255))},${round(clamp(c[1], 0, 255))},${round(clamp(c[2], 0, 255))},${clamp(a * GA, 0, 1)})`;
+
+function decode(v) { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }
+function lab(c) {
+  const r = decode(c[0]), g = decode(c[1]), b = decode(c[2]);
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  return [0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+          1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+          0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s];
+}
+function accuracy(a, b) {
+  const p = lab(a), q = lab(b);
+  const d = Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+  return clamp(1 - d / 0.42, 0, 1) ** 0.85;
+}
+function hsb2rgb(h, s, v) {
+  h = ((h % 360) + 360) % 360; s = clamp(s, 0, 100) / 100; v = clamp(v, 0, 100) / 100;
+  const c = v * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c;
+  let r = 0, g = 0, b = 0;
+  if (h < 60) { r = c; g = x; } else if (h < 120) { r = x; g = c; } else if (h < 180) { g = c; b = x; }
+  else if (h < 240) { g = x; b = c; } else if (h < 300) { r = x; b = c; } else { r = c; b = x; }
+  return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
+}
+function rgb2hsb(c) {
+  const r = c[0] / 255, g = c[1] / 255, b = c[2] / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  let h = 0;
+  if (d > 0) {
+    if (mx === r) h = 60 * ((((g - b) / d) % 6 + 6) % 6);
+    else if (mx === g) h = 60 * ((b - r) / d + 2);
+    else h = 60 * ((r - g) / d + 4);
+  }
+  return [((h % 360) + 360) % 360, mx > 0 ? d / mx * 100 : 0, mx * 100];
+}
+const hex = (c) => "#" + c.map((v) => round(clamp(v, 0, 255)).toString(16).padStart(2, "0")).join("").toUpperCase();
+function family(h) {
+  h = ((h % 360) + 360) % 360;
+  for (let i = FAMILIES.length - 1; i >= 0; i--) if (h >= FAMILIES[i][0]) return FAMILIES[i][1];
+  return "red";
+}
+
+// ---- springs -------------------------------------------------------------------
+const springs = [];
+const newSpring = (x, p) => ({ x, v: 0, t: x, k: p[0], c: p[1] });
+const spring = (x, p) => { const s = newSpring(x, p); springs.push(s); return s; };
+function stepSpring(s, dt) {
+  if (s.v === 0 && s.x === s.t) return;
+  const n = Math.max(1, Math.ceil(dt * 240)), h = dt / n;
+  for (let i = 0; i < n; i++) { const a = s.k * (s.t - s.x) - s.c * s.v; s.v += a * h; s.x += s.v * h; }
+  if (Math.abs(s.t - s.x) < 0.0005 && Math.abs(s.v) < 0.0005) { s.x = s.t; s.v = 0; }
+}
+const snap = (s, x) => { s.x = x; s.t = x; s.v = 0; };
+
+// ---- Telegram ------------------------------------------------------------------
+const tg = window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData !== undefined ? window.Telegram.WebApp : null;
+if (tg) {
+  try { tg.ready(); tg.expand(); } catch (e) {}
+  try { tg.disableVerticalSwipes && tg.disableVerticalSwipes(); } catch (e) {}
+}
+const inTelegram = !!(tg && tg.initData);
+function haptic(kind) {
+  const h = tg && tg.HapticFeedback;
+  try {
+    if (h && tg.isVersionAtLeast && tg.isVersionAtLeast("6.1")) {
+      if (kind === "success" || kind === "warning" || kind === "error") h.notificationOccurred(kind);
+      else if (kind === "select") h.selectionChanged();
+      else h.impactOccurred(kind === "medium" ? "medium" : "light");
+    } else if (navigator.vibrate) navigator.vibrate(kind === "error" ? [18, 40, 18] : 8);
+  } catch (e) {}
+}
+function paintChrome(mode) {
+  const c = mode === "light" ? "#f1f0eb" : "#0b0b0c";
+  document.documentElement.style.setProperty("--bg", c);
+  if (tg && tg.isVersionAtLeast && tg.isVersionAtLeast("6.1")) {
+    try { tg.setHeaderColor(c); tg.setBackgroundColor(c); } catch (e) {}
+    try { tg.setBottomBarColor && tg.isVersionAtLeast("7.10") && tg.setBottomBarColor(c); } catch (e) {}
+  }
+}
+function copyText(text) {
+  let done = false;
+  try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).catch(fallback); done = true; } } catch (e) {}
+  if (!done) fallback();
+  function fallback() {
+    try {
+      const t = document.createElement("textarea");
+      t.value = text; t.setAttribute("readonly", ""); t.style.position = "fixed"; t.style.opacity = "0";
+      document.body.appendChild(t); t.select(); document.execCommand("copy"); t.remove();
+    } catch (e) {}
+  }
+}
+
+// ---- canvas ----------------------------------------------------------------------
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+let scale = 1, offX = 0, offY = 0, dpr = 1;
+function resize() {
+  dpr = Math.min(window.devicePixelRatio || 1, 3);
+  const cw = canvas.clientWidth, ch = canvas.clientHeight;
+  canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr);
+  scale = Math.min(cw / W, ch / H);
+  offX = (cw - W * scale) / 2; offY = (ch - H * scale) / 2;
+}
+window.addEventListener("resize", resize);
+if (tg) try { tg.onEvent("viewportChanged", resize); } catch (e) {}
+
+function font(size, weight) { return `${weight || 500} ${size}px ${FONT}`; }
+function setSpacing(v) { try { ctx.letterSpacing = (v || 0) + "px"; } catch (e) {} }
+function tw(value, size, track, weight) {
+  ctx.font = font(size, weight); setSpacing(track);
+  const w = ctx.measureText(value).width; setSpacing(0); return w;
+}
+function txt(value, x, y, size, c, a = 1, align = "left", track = 0, weight = 500) {
+  if (a * GA <= 0.004) return;
+  ctx.font = font(size, weight); setSpacing(track);
+  ctx.textAlign = align; ctx.textBaseline = "alphabetic";
+  ctx.fillStyle = col(c, a); ctx.fillText(value, x, y); setSpacing(0);
+}
+function wrap(value, size, maxW) {
+  const words = value.split(" "), lines = []; let line = "";
+  for (const w of words) {
+    const t = line ? line + " " + w : w;
+    if (line && tw(t, size) > maxW) { lines.push(line); line = w; } else line = t;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+function rr(x, y, w, h, r) {
+  ctx.beginPath(); r = Math.max(0, Math.min(r, w / 2, h / 2));
+  if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
+  else { ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+}
+function fillRR(x, y, w, h, r, c, a = 1) { rr(x, y, w, h, r); ctx.fillStyle = col(c, a); ctx.fill(); }
+function ring(x, y, w, h, r, c, a, width = 1) { rr(x, y, w, h, r); ctx.strokeStyle = col(c, a); ctx.lineWidth = width; ctx.stroke(); }
+function rect(x, y, w, h, c, a = 1) { ctx.fillStyle = col(c, a); ctx.fillRect(x, y, w, h); }
+function dot(cx, cy, r, c, a = 1) { ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fillStyle = col(c, a); ctx.fill(); }
+
+// ---- state -------------------------------------------------------------------------
+const S = {
+  time: 0, stageTime: 0, stage: "ready", round: 0, played: 0, total: 0, lastPick: -1, best: 0,
+  name: "", verdict: "", target: [128, 128, 128], guess: [128, 128, 128], score: 0,
+  mode: "dark", queue: [], gen: 0,
+  pointerId: null, pressed: "", pressedArg: 0, hover: "", hoverArg: 0, hoverRow: 0, grab: 0,
+  downX: 0, downY: 0, dragging: false, dragDx: 0, dragDy: 0,
+  cards: [], drift: null, diagLines: [], val: [200, 50, 60], max: [360, 100, 100],
+  btnLabel: "", btnPrev: "",
+};
+S.themeT = spring(0, FEEL.theme);
+S.segX = spring(L.seg.x + 47, FEEL.snap);
+S.sunRot = spring(0, FEEL.soft);
+S.moonRot = spring(0, FEEL.bounce);
+S.segPress = [spring(1, FEEL.bounce), spring(1, FEEL.bounce)];
+S.disp = []; S.rowA = []; S.rowHover = []; S.capScale = []; S.driftT = [];
+for (let i = 0; i < 3; i++) {
+  S.disp.push(spring(S.val[i], FEEL.glide)); S.rowA.push(spring(0, FEEL.soft));
+  S.rowHover.push(spring(0, FEEL.soft)); S.capScale.push(spring(1, FEEL.bounce)); S.driftT.push(spring(0, FEEL.snap));
+}
+S.gIntro = spring(1, FEEL.soft); S.gLook = spring(0, FEEL.soft); S.gResult = spring(0, FEEL.soft);
+S.scrim = spring(0, FEEL.soft); S.swapT = spring(0, FEEL.soft); S.lookSwap = spring(0, FEEL.soft);
+S.scoreShown = spring(0, FEEL.count); S.diagA = spring(0, FEEL.soft); S.fanT = spring(0, FEEL.snap);
+const block = (a) => ({ cx: spring(L.big.cx, FEEL.snap), cy: spring(L.big.cy, FEEL.snap), s: spring(L.big.s, FEEL.snap), r: spring(L.big.r, FEEL.snap), a: spring(a, FEEL.soft) });
+S.A = block(1); S.B = block(0);
+S.btnVis = spring(1, FEEL.soft); S.btnScale = spring(1, FEEL.bounce); S.btnSwap = spring(1, FEEL.soft); S.btnW = spring(0, FEEL.snap);
+S.live = [spring(74, FEEL.soft), spring(74, FEEL.soft), spring(71, FEEL.soft)];
+S.toast = spring(0, FEEL.soft); S.toastText = ""; S.toastUntil = -1;
+S.pal = {};
+S.gSummary = spring(0, FEEL.soft); S.btn2Vis = spring(0, FEEL.soft); S.btn2Scale = spring(1, FEEL.bounce);
+S.sumRow = [spring(0, FEEL.snap), spring(0, FEEL.snap), spring(0, FEEL.snap)];
+S.run = null; S.roundIdx = 0; S.challenge = null;
+
+// ---- runs & challenges -------------------------------------------------------------
+function randomPicks() {
+  const bag = COLOURS.map((_, i) => i), out = [];
+  while (out.length < RUN_LENGTH) out.push(bag.splice(Math.floor(Math.random() * bag.length), 1)[0]);
+  return out;
+}
+function startRun(picks) { S.run = { picks, guesses: [], scores: [] }; S.roundIdx = 0; }
+const avgOf = (a) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+const h2 = (n) => round(clamp(n, 0, 255)).toString(16).padStart(2, "0");
+function b64url(str) {
+  const bytes = new TextEncoder().encode(str); let bin = "";
+  bytes.forEach((b) => { bin += String.fromCharCode(b); });
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function unb64url(s) {
+  try {
+    const bin = atob(s.replace(/-/g, "+").replace(/_/g, "/"));
+    return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+  } catch (e) { return ""; }
+}
+function myName() {
+  const u = inTelegram && tg.initDataUnsafe && tg.initDataUnsafe.user;
+  return (u && (u.first_name || u.username)) || "";
+}
+function encodeRun() {
+  const r = S.run;
+  let p = "d" + r.picks.map(h2).join("") + r.guesses.map((g) => g.map(h2).join("")).join("");
+  const n = Array.from(myName()).slice(0, 16).join("");
+  if (n) p += "_" + b64url(n);
+  return p;
+}
+function decodeRun(p) {
+  const m = /^d([0-9a-f]{6})([0-9a-f]{18})(?:_([A-Za-z0-9_-]{1,120}))?$/.exec(p || "");
+  if (!m) return null;
+  const picks = [0, 1, 2].map((i) => parseInt(m[1].substr(i * 2, 2), 16));
+  if (picks.some((i) => i >= COLOURS.length) || new Set(picks).size !== 3) return null;
+  const guesses = [0, 1, 2].map((i) => [0, 1, 2].map((k) => parseInt(m[2].substr(i * 6 + k * 2, 2), 16)));
+  const scores = picks.map((pi, i) => accuracy(guesses[i], COLOURS[pi].slice(1)));
+  const name = (m[3] && unb64url(m[3]).trim()) || "A friend";
+  return { picks, guesses, scores, name: Array.from(name).slice(0, 16).join("") };
+}
+function readChallenge() {
+  let p = inTelegram && tg.initDataUnsafe && tg.initDataUnsafe.start_param;
+  if (!p) { try { p = new URLSearchParams(location.search).get("c") || new URLSearchParams(location.search).get("tgWebAppStartParam"); } catch (e) {} }
+  return decodeRun(p);
+}
+function shareRun() {
+  const param = encodeRun();
+  const link = BOT_USERNAME ? `https://t.me/${BOT_USERNAME}?startapp=${param}` : `${location.origin}${location.pathname}?c=${param}`;
+  const pct = round(avgOf(S.run.scores) * 100);
+  let text = `I scored ${pct}% on Spectra. Three colours, two seconds each. Beat me.`;
+  if (S.challenge) {
+    const d = pct - round(avgOf(S.challenge.scores) * 100);
+    text = d > 0 ? `I beat ${S.challenge.name} on Spectra, ${pct}%. Your turn.` : `I scored ${pct}% on Spectra. Can you do better?`;
+  }
+  const url = "https://t.me/share/url?url=" + encodeURIComponent(link) + "&text=" + encodeURIComponent(text);
+  if (inTelegram && tg.openTelegramLink) { try { tg.openTelegramLink(url); return; } catch (e) {} }
+  if (navigator.share) { navigator.share({ text, url: link }).catch(() => {}); return; }
+  copyText(text + " " + link); showToast("Link copied");
+}
+
+function later(delay, fn) { S.queue.push({ t: delay, fn, gen: S.gen }); }
+function clearQueue() { S.gen++; S.queue = []; }
+const trackTop = (i) => L.rowTop + i * L.rowGap + L.trackOffset;
+
+function setButton(label, instant) {
+  if (label === S.btnLabel) return;
+  S.btnPrev = S.btnLabel; S.btnLabel = label;
+  const w = Math.max(tw(label, 16, 0, 600) + L.button.pad * 2, L.button.minW);
+  if (instant || S.btnVis.x < 0.05) { snap(S.btnSwap, 1); snap(S.btnW, w); S.btnPrev = ""; }
+  else { snap(S.btnSwap, 0); S.btnSwap.t = 1; S.btnW.t = w; }
+}
+function setTheme(mode, instant) {
+  if (mode === S.mode) return;
+  S.mode = mode;
+  if (mode === "light") { S.themeT.t = 1; S.segX.t = L.seg.x + 4; S.sunRot.t += 90; }
+  else { S.themeT.t = 0; S.segX.t = L.seg.x + 47; S.moonRot.v -= 320; }
+  if (instant) { snap(S.themeT, S.themeT.t); snap(S.segX, S.segX.t); }
+  paintChrome(mode);
+}
+
+function newRound() {
+  clearQueue();
+  const fromReady = S.stage === "ready";
+  if (!S.run) startRun(randomPicks());
+  if (S.roundIdx === 0) S.cards = [];
+  const c = COLOURS[S.run.picks[S.roundIdx]];
+  S.name = c[0]; S.target = [c[1], c[2], c[3]];
+  S.round = S.roundIdx + 1; S.stage = "look"; S.stageTime = 0;
+  S.gSummary.t = 0; S.btn2Vis.t = 0;
+  S.val = [200, 50, 60];
+  for (let i = 0; i < 3; i++) { snap(S.disp[i], S.val[i]); S.rowA[i].t = 0; }
+  const A = S.A, big = L.big;
+  if (fromReady) { S.lookSwap.t = 1; A.s.v = -420; }
+  else {
+    snap(A.cx, big.cx); snap(A.cy, big.cy); snap(A.r, big.r);
+    snap(A.s, 250); A.s.t = big.s; snap(A.a, 0); A.a.t = 1; snap(S.lookSwap, 1);
+  }
+  S.B.a.t = 0;
+  S.gIntro.t = 0; S.gLook.t = 1; S.gResult.t = 0; S.scrim.t = 0; S.btnVis.t = 0;
+  snap(S.swapT, 0);
+}
+function toMix() {
+  clearQueue();
+  S.stage = "mix"; S.stageTime = 0; S.gLook.t = 0; S.swapT.t = 1;
+  for (let i = 0; i < 3; i++) later(0.05 + 0.07 * i, () => { S.rowA[i].t = 1; });
+  setButton("Lock it");
+  later(0.18, () => { S.btnVis.t = 1; });
+}
+function buildDrift() {
+  const you = rgb2hsb(S.guess), tru = rgb2hsb(S.target);
+  const dh = ((you[0] - tru[0] + 540) % 360) - 180, ds = you[1] - tru[1], db = you[2] - tru[2];
+  const label = (d, u) => { d = round(d); if (d === 0) return "exact"; return (d > 0 ? "+" : "") + d + u; };
+  const hueStops = []; for (let k = 0; k <= 12; k++) hueStops.push([k / 12, hsb2rgb(k * 30, 70, 92)]);
+  S.drift = [
+    { n: "HUE", a: you[0] / 360, b: tru[0] / 360, label: label(dh, DEG), hit: Math.abs(dh) <= 8, stops: hueStops },
+    { n: "SATURATION", a: you[1] / 100, b: tru[1] / 100, label: label(ds, "%"), hit: Math.abs(ds) <= 5,
+      stops: [[0, hsb2rgb(tru[0], 0, tru[2])], [1, hsb2rgb(tru[0], 100, tru[2])]] },
+    { n: "BRIGHTNESS", a: you[2] / 100, b: tru[2] / 100, label: label(db, "%"), hit: Math.abs(db) <= 5,
+      stops: [[0, hsb2rgb(tru[0], tru[1], 0)], [1, hsb2rgb(tru[0], tru[1], 100)]] },
+  ];
+  const extra = [];
+  if (Math.abs(db) > 6) extra.push(db > 0 ? "lighter" : "darker");
+  if (Math.abs(ds) > 7) extra.push(ds > 0 ? "more saturated" : "flatter");
+  let text;
+  if (Math.abs(dh) > 10) {
+    text = `Your hue sat ${Math.abs(round(dh))}${DEG} toward ${family(you[0])}.`;
+    if (extra.length) text += ` You also went ${extra.join(" and ")}.`;
+  } else if (extra.length) text = `Hue was right. You went ${extra.join(" and ")} than the real thing.`;
+  else text = "Hue, saturation and brightness all landed.";
+  S.diagLines = wrap(text, 15, L.rw);
+}
+function toResult() {
+  clearQueue();
+  S.guess = hsb2rgb(S.val[0], S.val[1], S.val[2]);
+  S.score = accuracy(S.guess, S.target);
+  S.played++; S.total += S.score; S.best = Math.max(S.best, S.score);
+  S.run.guesses[S.roundIdx] = S.guess.map(round); S.run.scores[S.roundIdx] = accuracy(S.run.guesses[S.roundIdx], S.target);
+  S.stage = "result"; S.stageTime = 0;
+  for (let i = 0; i < 3; i++) S.rowA[i].t = 0;
+  const A = S.A, B = S.B, big = L.big, pa = L.pairA, pb = L.pairB;
+  A.cx.t = pa.cx; A.cy.t = pa.cy; A.s.t = pa.s; A.r.t = pa.r;
+  snap(B.cx, big.cx); snap(B.cy, big.cy); snap(B.s, big.s); snap(B.r, big.r); snap(B.a, 0);
+  B.cx.t = pb.cx; B.cy.t = pb.cy; B.s.t = pb.s; B.r.t = pb.r; B.a.t = 1;
+  S.verdict = VERDICTS[VERDICTS.length - 1][1];
+  for (const v of VERDICTS) if (S.score >= v[0]) { S.verdict = v[1]; break; }
+  buildDrift();
+  haptic(S.score >= 0.78 ? "success" : S.score >= 0.42 ? "warning" : "error");
+  S.gResult.t = 1;
+  snap(S.scoreShown, 0); later(0.12, () => { S.scoreShown.t = S.score; });
+  for (let i = 0; i < 3; i++) { snap(S.driftT[i], 0); later(0.32 + 0.09 * i, () => { S.driftT[i].t = 1; }); }
+  snap(S.diagA, 0); later(0.85, () => { S.diagA.t = 1; });
+  setButton("Keep the colour");
+}
+
+// ---- card stack ----------------------------------------------------------------------
+const frontCard = () => S.cards[S.cards.length - 1] || null;
+function makeCard() {
+  const hsb = rgb2hsb(S.target), C = L.card;
+  const chip = round(S.score * 100) + "%";
+  return {
+    name: S.name, rgb: S.target, shade: hsb2rgb(hsb[0], hsb[1] + 14, hsb[2] - 26), hexText: hex(S.target),
+    chip, chipW: 15 + 12 + 7 + tw(chip, 13, 0, 600) + 15,
+    x: newSpring(C.x, FEEL.snap), y: newSpring(C.y + 64, FEEL.snap), a: newSpring(0, FEEL.soft), s: newSpring(0.95, FEEL.snap),
+    rot: newSpring(0, FEEL.snap), lift: newSpring(0, FEEL.bounce), badgeS: newSpring(1, FEEL.bounce), copyT: newSpring(0, FEEL.bounce),
+    hold: 0.16, flying: 0, copyUntil: -1,
+  };
+}
+function toReveal() {
+  clearQueue();
+  S.stage = "reveal"; S.stageTime = 0;
+  const n = S.cards.length;
+  S.cards.forEach((c, idx) => { c.hold = 0.03 * Math.min(n - 1 - idx, 3); c.flying = 0; });
+  S.cards.push(makeCard());
+  while (S.cards.length > CARDS.keep) S.cards.shift();
+  S.scrim.t = 1; S.gResult.t = 0; S.A.a.t = 0; S.B.a.t = 0;
+  setButton(S.roundIdx < RUN_LENGTH - 1 ? "Next colour" : "See results");
+}
+function toExit() {
+  clearQueue();
+  S.stage = "exit"; S.stageTime = 0; S.scrim.t = 0; S.gResult.t = 0;
+  S.A.a.t = 0; S.B.a.t = 0; S.btnVis.t = 0; S.dragging = false;
+  for (const c of S.cards) { c.a.t = 0; c.y.t += 28; c.rot.t = 0; }
+}
+function toSummary() {
+  clearQueue();
+  S.stage = "summary"; S.stageTime = 0;
+  S.scrim.t = 0; S.gResult.t = 0; S.A.a.t = 0; S.B.a.t = 0; S.dragging = false;
+  for (const c of S.cards) { c.a.t = 0; c.y.t += 28; c.rot.t = 0; }
+  S.gSummary.t = 1;
+  for (let i = 0; i < 3; i++) { snap(S.sumRow[i], 0); later(0.15 + 0.08 * i, () => { S.sumRow[i].t = 1; }); }
+  snap(S.scoreShown, 0); later(0.1, () => { S.scoreShown.t = avgOf(S.run.scores); });
+  setButton(S.challenge ? "Send it back" : "Challenge a friend");
+  later(0.3, () => { S.btn2Vis.t = 1; });
+  if (S.challenge) {
+    const d = round(avgOf(S.run.scores) * 100) - round(avgOf(S.challenge.scores) * 100);
+    haptic(d > 0 ? "success" : d < 0 ? "error" : "warning");
+  }
+}
+function playAgain() {
+  S.challenge = null; S.run = null; S.roundIdx = 0;
+  S.gSummary.t = 0; S.btn2Vis.t = 0; S.btnVis.t = 0;
+  S.stage = "exit"; S.stageTime = 0;
+}
+function showToast(t) { S.toastText = t; S.toastUntil = S.time + 1.5; }
+function copyFront() {
+  const c = frontCard(); if (!c) return;
+  c.copyUntil = S.time + 1.4; c.badgeS.v -= 5;
+  copyText(c.hexText);
+  showToast("Copied " + c.hexText);
+}
+function bringForward(idx) {
+  const c = S.cards.splice(idx, 1)[0]; S.cards.push(c);
+  c.s.v += 1.3; c.lift.v -= 160;
+}
+function throwFront(dir) {
+  const c = frontCard(); if (!c || S.cards.length < 2) return;
+  c.flying = 0.15; c.x.t = L.card.x + dir * 300; c.y.t = L.card.y - 24; c.rot.t = dir * 16;
+}
+
+// ---- input -------------------------------------------------------------------------
+const cardRect = (c) => [c.x.x, c.y.x + c.lift.x, L.card.w, L.card.h];
+function hitTest(x, y) {
+  const sg = L.seg;
+  if (y >= sg.y - 6 && y <= sg.y + sg.h + 6) {
+    if (x >= sg.x && x <= sg.x + 45) return ["light"];
+    if (x > sg.x + 45 && x <= sg.x + sg.w + 6) return ["dark"];
+  }
+  const st = S.stage;
+  if ((st === "ready" || st === "mix" || st === "result" || st === "reveal" || st === "summary") && S.btnVis.t > 0.5) {
+    const w = S.btnW.x, b = L.button;
+    if (Math.abs(x - b.cx) <= w / 2 + 6 && Math.abs(y - b.cy) <= b.h / 2 + 8) return ["action"];
+  }
+  if (st === "summary" && S.btn2Vis.t > 0.5) {
+    const b = L.button2;
+    if (Math.abs(x - b.cx) <= b.w / 2 + 6 && Math.abs(y - b.cy) <= b.h / 2 + 6) return ["again"];
+  }
+  if (st === "mix") {
+    for (let i = 0; i < 3; i++) {
+      const cy = trackTop(i) + L.trackH / 2;
+      if (Math.abs(y - cy) <= 34 && x >= L.rx - 20 && x <= L.rx + L.rw + 20) return ["rail", i + 1];
+    }
+  }
+  if (st === "reveal") {
+    const n = S.cards.length, front = S.cards[n - 1];
+    if (front && front.flying <= 0) {
+      const [cx, cy, cw, ch] = cardRect(front);
+      if (x >= cx + cw - 70 && x <= cx + cw - 14 && y >= cy + 14 && y <= cy + 70) return ["copy"];
+      if (x >= cx && x <= cx + cw && y >= cy && y <= cy + ch) return ["card"];
+    }
+    for (let idx = n - 2; idx >= Math.max(0, n - CARDS.show); idx--) {
+      const [cx, cy, cw, ch] = cardRect(S.cards[idx]);
+      if (x >= cx && x <= cx + cw && y >= cy && y <= cy + ch) return ["back", idx];
+    }
+  }
+  return [""];
+}
+function setValue(i, x) {
+  const span = L.rw - L.inset * 2;
+  const t = clamp((x - (L.rx + L.inset)) / span, 0, 1);
+  S.val[i - 1] = round(t * S.max[i - 1]);
+}
+function activate(action, arg) {
+  if (action === "light" || action === "dark") {
+    if (action !== S.mode) haptic("select");
+    setTheme(action);
+  } else if (action === "action") {
+    haptic("medium");
+    if (S.stage === "ready") newRound();
+    else if (S.stage === "mix") toResult();
+    else if (S.stage === "result") toReveal();
+    else if (S.stage === "reveal") {
+      if (S.roundIdx < RUN_LENGTH - 1) { S.roundIdx++; toExit(); } else toSummary();
+    } else if (S.stage === "summary") shareRun();
+  } else if (action === "again") { haptic("medium"); playAgain(); } else if (action === "copy") { haptic("success"); copyFront(); }
+  else if (action === "card") { const c = frontCard(); if (c) c.lift.v -= 360; }
+  else if (action === "back") { haptic("light"); bringForward(arg); }
+}
+function release() { S.pointerId = null; S.pressed = ""; S.pressedArg = 0; S.grab = 0; S.dragging = false; }
+function toLocal(e) {
+  const r = canvas.getBoundingClientRect();
+  return [(e.clientX - r.left - offX) / scale, (e.clientY - r.top - offY) / scale];
+}
+canvas.addEventListener("pointerdown", (e) => {
+  if (S.pointerId !== null) return;
+  const [x, y] = toLocal(e);
+  const [action, arg = 0] = hitTest(x, y);
+  if (!action) return;
+  try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+  S.pointerId = e.pointerId; S.pressed = action; S.pressedArg = arg;
+  S.hover = action; S.hoverArg = arg; S.downX = x; S.downY = y;
+  if (action === "rail") { S.grab = arg; S.hoverRow = arg; setValue(arg, x); haptic("light"); }
+  e.preventDefault();
+});
+canvas.addEventListener("pointermove", (e) => {
+  if (S.pointerId !== e.pointerId) return;
+  const [x, y] = toLocal(e);
+  if (S.grab > 0) { setValue(S.grab, x); return; }
+  if (S.pressed === "card") {
+    const dx = x - S.downX, dy = y - S.downY;
+    if (!S.dragging && dx * dx + dy * dy > 36) S.dragging = true;
+    if (S.dragging) { S.dragDx = dx; S.dragDy = dy; return; }
+  }
+  const [action, arg = 0] = hitTest(x, y);
+  S.hover = action; S.hoverArg = arg;
+});
+function up(e, cancelled) {
+  if (S.pointerId !== e.pointerId) return;
+  const [x, y] = toLocal(e);
+  const pressed = S.pressed, pressedArg = S.pressedArg;
+  if (S.grab > 0) { if (!cancelled) setValue(S.grab, x); release(); S.hover = ""; S.hoverRow = 0; return; }
+  if (S.dragging) {
+    const dx = S.dragDx; release(); S.hover = ""; S.dragDx = 0; S.dragDy = 0;
+    if (!cancelled && Math.abs(dx) > CARDS.throw) { haptic("light"); throwFront(dx < 0 ? -1 : 1); }
+    return;
+  }
+  const [action, arg = 0] = hitTest(x, y);
+  release(); S.hover = ""; S.hoverArg = 0; S.hoverRow = 0;
+  if (!cancelled && pressed && pressed === action && pressedArg === arg) activate(action, arg);
+}
+canvas.addEventListener("pointerup", (e) => up(e, false));
+canvas.addEventListener("pointercancel", (e) => up(e, true));
+
+// ---- update --------------------------------------------------------------------------
+function updatePalette() {
+  const t = S.themeT.x;
+  for (const k in DARK) S.pal[k] = Array.isArray(DARK[k]) ? mix3(DARK[k], LIGHT[k], t) : mix(DARK[k], LIGHT[k], t);
+}
+function targetCards(dt) {
+  const C = L.card, n = S.cards.length, fan = S.fanT.x;
+  for (let idx = 0; idx < S.cards.length; idx++) {
+    const c = S.cards[idx], b = n - 1 - idx;
+    if (c.flying > 0) {
+      c.flying -= dt;
+      if (c.flying <= 0) { S.cards.splice(idx, 1); S.cards.unshift(c); c.flying = 0; return targetCards(0); }
+    } else if (c.hold > 0) c.hold -= dt;
+    else {
+      let x = C.x + b * mix(C.dx, CARDS.fanDx, fan), y = C.y + b * mix(C.dy, CARDS.fanDy, fan), rot = b * CARDS.fanRot * fan;
+      if (b === 0 && S.dragging) { x += S.dragDx; y += S.dragDy * 0.3; rot = S.dragDx * 0.05; }
+      if (b > 0 && S.hover === "back" && S.hoverArg === idx) y -= 12;
+      c.x.t = x; c.y.t = y; c.rot.t = rot; c.s.t = 1; c.a.t = b < CARDS.show ? 1 : 0;
+    }
+    if (b === 0) {
+      c.lift.t = S.hover === "card" && !S.dragging ? -6 : 0;
+      c.badgeS.t = S.hover === "copy" ? 1.1 : 1;
+    } else { c.lift.t = 0; c.badgeS.t = 1; }
+    c.copyT.t = S.time < c.copyUntil ? 1 : 0;
+  }
+}
+function advance(seconds) {
+  const dt = clamp(seconds, 0, 1 / 20);
+  S.time += dt; S.stageTime += dt;
+  const list = S.queue; S.queue = [];
+  for (const q of list) if (q.gen === S.gen) { q.t -= dt; if (q.t <= 0) q.fn(); else S.queue.push(q); }
+  if (S.stage === "look" && S.stageTime >= LOOK_SECONDS) toMix();
+  if (S.stage === "exit" && S.stageTime >= EXIT_SECONDS) newRound();
+
+  const hoverBtn = S.hover === "action";
+  S.btnScale.t = S.pressed === "action" && hoverBtn ? 0.955 : 1;
+  ["light", "dark"].forEach((n, i) => { S.segPress[i].t = S.pressed === n && S.hover === n ? 0.82 : 1; });
+  S.btn2Scale.t = S.pressed === "again" && S.hover === "again" ? 0.955 : 1;
+  const mixing = S.stage === "mix";
+  for (let i = 0; i < 3; i++) {
+    const held = S.grab === i + 1, over = mixing && S.hoverRow === i + 1;
+    S.rowHover[i].t = held || over ? 1 : 0;
+    S.capScale[i].t = held ? 1.12 : over ? 1.04 : 1;
+    S.disp[i].t = S.val[i];
+  }
+  const overStack = S.hover === "card" || S.hover === "back" || S.hover === "copy";
+  S.fanT.t = S.stage === "reveal" && overStack && !S.dragging && S.cards.length > 1 ? 1 : 0;
+  if (S.stage === "reveal") targetCards(dt);
+
+  let lt;
+  if (S.stage === "ready" || S.stage === "look") lt = S.pal.faint || DARK.faint;
+  else if (S.stage === "mix") lt = hsb2rgb(S.disp[0].x, S.disp[1].x, S.disp[2].x);
+  else if (S.stage === "result") lt = S.guess;
+  else if (S.stage === "summary") lt = COLOURS[S.run.picks[0]].slice(1);
+  else { const c = frontCard(); lt = c ? c.rgb : S.target; }
+  for (let i = 0; i < 3; i++) S.live[i].t = lt[i];
+  S.toast.t = S.time < S.toastUntil ? 1 : 0;
+
+  for (const s of springs) stepSpring(s, dt);
+  if (S.stage === "summary") for (const c of S.cards) { c.a.t = 0; }
+  for (const c of S.cards) for (const k of ["x", "y", "a", "s", "rot", "lift", "badgeS", "copyT"]) stepSpring(c[k], dt);
+  updatePalette();
+}
+
+// ---- drawing ---------------------------------------------------------------------------
+function drawBlock(P, B, c) {
+  const a = B.a.x; if (a < 0.004) return;
+  GA = a;
+  const s = Math.max(0, B.s.x), x = B.cx.x - s / 2, y = B.cy.x - s / 2;
+  fillRR(x, y, s, s, B.r.x, c, 1);
+  ring(x + 0.5, y + 0.5, s - 1, s - 1, B.r.x, P.ink, P.ringA);
+}
+function drawLeft(P) {
+  const st = S.stage;
+  let colA;
+  if (st === "ready") colA = P.surface;
+  else if (st === "look") colA = mix3(P.surface, S.target, S.lookSwap.x);
+  else if (st === "mix") colA = mix3(S.target, hsb2rgb(S.disp[0].x, S.disp[1].x, S.disp[2].x), S.swapT.x);
+  else colA = S.guess;
+  drawBlock(P, S.A, colA);
+  drawBlock(P, S.B, S.target);
+
+  const gi = S.gIntro.x;
+  if (gi > 0.004) { GA = gi; txt("2s", L.big.cx, L.big.cy + 22, 64, P.faint, 1, "center", -1, 600); }
+
+  const g = S.gLook.x;
+  if (g > 0.004) {
+    GA = g;
+    const prog = st === "look" ? clamp(S.stageTime / LOOK_SECONDS, 0, 1) : 1;
+    rect(L.bar.x, L.bar.y, L.bar.w, 2, P.ink, 0.12);
+    rect(L.bar.x, L.bar.y, L.bar.w * (1 - prog), 2, P.ink, 1);
+  }
+  const gr = S.gResult.x;
+  if (gr > 0.004) {
+    GA = gr;
+    const ax = L.pairA.cx - L.pairA.s / 2, bx = L.pairB.cx - L.pairB.s / 2, ly = L.pairLabel;
+    txt("YOURS", ax, ly, 12, P.muted, 1, "left", 0.6, 600);
+    txt(hex(S.guess), ax, ly + 22, 14, P.ink);
+    txt(S.name.toUpperCase(), bx, ly, 12, P.muted, 1, "left", 0.6, 600);
+    txt(hex(S.target), bx, ly + 22, 14, P.ink);
+  }
+}
+function drawHeading(P, alpha, title, l1, l2) {
+  if (alpha <= 0.004) return;
+  GA = alpha; ctx.save(); ctx.translate(0, (1 - alpha) * 14);
+  const hy = L.heading;
+  txt(title, L.rx, hy, 54, P.ink, 1, "left", -1.6, 700);
+  txt(l1, L.rx, hy + 44, 15, P.muted);
+  txt(l2, L.rx, hy + 67, 15, P.muted);
+  ctx.restore();
+}
+const RAIL_NAMES = ["HUE", "SATURATION", "BRIGHTNESS"], RAIL_UNITS = [DEG, "%", "%"];
+function drawRails(P) {
+  const rx = L.rx, rw = L.rw, inset = L.inset;
+  const h = S.disp[0].x, s = S.disp[1].x, b = S.disp[2].x;
+  for (let i = 0; i < 3; i++) {
+    const ra = S.rowA[i].x; if (ra <= 0.004) continue;
+    GA = ra;
+    const top = L.rowTop + i * L.rowGap, ty = trackTop(i), v = S.disp[i].x, active = S.rowHover[i].x;
+    ctx.save(); ctx.translate(0, (1 - ra) * 14);
+    txt(RAIL_NAMES[i], rx, top + 10, 12, P.muted, 1, "left", 0.9, 600);
+    txt(round(v) + RAIL_UNITS[i], rx + rw, top + 10, 15, mix3(P.muted, P.ink, 0.5 + 0.5 * active), 1, "right", 0, 600);
+    const grad = ctx.createLinearGradient(rx, 0, rx + rw, 0);
+    if (i === 0) { const ss = Math.max(s, 22), bb = Math.max(b, 50); for (let k = 0; k <= 12; k++) grad.addColorStop(k / 12, col(hsb2rgb(k * 30, ss, bb))); }
+    else if (i === 1) { grad.addColorStop(0, col(hsb2rgb(h, 0, b))); grad.addColorStop(1, col(hsb2rgb(h, 100, b))); }
+    else { grad.addColorStop(0, col(hsb2rgb(h, s, 0))); grad.addColorStop(1, col(hsb2rgb(h, s, 100))); }
+    rr(rx, ty, rw, L.trackH, L.trackH / 2); ctx.fillStyle = grad; ctx.fill();
+    ring(rx + 0.5, ty + 0.5, rw - 1, L.trackH - 1, L.trackH / 2, P.ink, P.ringA * (1 + 1.6 * active));
+
+    const cx = rx + inset + v / S.max[i] * (rw - inset * 2), cy = ty + L.trackH / 2;
+    const sy = S.capScale[i].x, sx = 1 + (sy - 1) * 0.6, lift = (sy - 1) * 24;
+    const cw = 22 * sx, ch = 56 * sy;
+    ctx.save();
+    ctx.shadowColor = col(P.shadow, P.capA * (1 + (sy - 1) * 4));
+    ctx.shadowBlur = 10 * scale * dpr; ctx.shadowOffsetY = (3 + lift) * scale * dpr;
+    fillRR(cx - cw / 2, cy - ch / 2, cw, ch, cw / 2, P.chip, 1);
+    ctx.restore();
+    rect(cx - 1, cy - 8 * sy, 2, 16 * sy, P.onchip, 0.28);
+    ctx.restore();
+  }
+}
+function drawResult(P) {
+  const g = S.gResult.x; if (g <= 0.004 || !S.drift) return;
+  GA = g;
+  const rx = L.rx, rw = L.rw, sy = L.score;
+  ctx.save(); ctx.translate(0, (1 - g) * 14);
+  txt(round(S.scoreShown.x * 100) + "%", rx, sy, 80, P.ink, 1, "left", -3, 700);
+  txt(S.verdict, rx + rw, sy, 14, P.muted, 1, "right", 0.8, 600);
+  rect(rx, sy + 26, rw, 1, P.ink, P.ringA * 1.4);
+  for (let i = 0; i < 3; i++) {
+    const d = S.drift[i], top = L.driftTop + i * L.driftGap;
+    txt(d.n, rx, top + 9, 11.5, P.muted, 1, "left", 0.9, 600);
+    txt(d.label, rx + rw, top + 9, 14, d.hit ? P.ink : P.muted, 1, "right", 0, 600);
+    const grad = ctx.createLinearGradient(rx, 0, rx + rw, 0);
+    for (const st of d.stops) grad.addColorStop(st[0], col(st[1], 0.4));
+    rr(rx, top + 28, rw, 4, 2); ctx.fillStyle = grad; ctx.fill();
+    const t = S.driftT[i].x, ax = rx + d.a * rw, bx = rx + d.b * rw, yx = mix(bx, ax, t), cy = top + 30;
+    rect(Math.min(bx, yx), cy - 1, Math.abs(yx - bx), 2, P.ink, 0.34);
+    dot(bx, cy, 10, P.ground); dot(bx, cy, 7, S.target);
+    dot(yx, cy, 10, P.ground); dot(yx, cy, 7, P.ink);
+  }
+  GA = g * S.diagA.x;
+  if (GA > 0.004) S.diagLines.forEach((l, k) => txt(l, rx, L.diagTop + k * 22.5, 15, P.muted));
+  ctx.restore();
+}
+function drawCopyIcon(ink, a, k) {
+  ctx.lineWidth = 1.4; ctx.strokeStyle = col(ink, a);
+  rr(-8 * k, -8 * k, 11 * k, 11 * k, 2.6 * k); ctx.stroke();
+  rr(-3 * k, -3 * k, 11 * k, 11 * k, 2.6 * k); ctx.fillStyle = col([255, 255, 255], 0.95 * a); ctx.fill(); ctx.stroke();
+}
+function drawCard(P, c) {
+  const a = c.a.x; if (a < 0.004) return;
+  GA = a;
+  const C = L.card, s = c.s.x, rot = c.rot.x * Math.PI / 180;
+  const cx = c.x.x + C.w / 2, cy = c.y.x + c.lift.x + C.h / 2;
+  ctx.save();
+  ctx.translate(cx, cy); ctx.rotate(rot); ctx.scale(s, s); ctx.translate(-C.w / 2, -C.h / 2);
+
+  ctx.save();
+  ctx.shadowColor = col(P.shadow, P.shadowA);
+  ctx.shadowBlur = 44 * scale * dpr; ctx.shadowOffsetY = (18 - c.lift.x * 0.8) * scale * dpr;
+  fillRR(0, 0, C.w, C.h, C.r, P.card, 1);
+  ctx.restore();
+  ring(0.5, 0.5, C.w - 1, C.h - 1, C.r, P.ink, P.ringA);
+
+  const grad = ctx.createLinearGradient(100, 13, 190, 265);
+  grad.addColorStop(0, col(c.rgb)); grad.addColorStop(0.12, col(c.rgb)); grad.addColorStop(1, col(c.shade));
+  rr(13, 13, C.w - 26, 252, 19); ctx.fillStyle = grad; ctx.fill();
+
+  // copy badge
+  const bs = c.badgeS.x, bcx = C.w - 42, bcy = 42;
+  fillRR(bcx - 17 * bs, bcy - 17 * bs, 34 * bs, 34 * bs, 11 * bs, [255, 255, 255], 0.84);
+  const ink = [22, 22, 26], t = clamp(c.copyT.x, 0, 1);
+  ctx.save(); ctx.translate(bcx, bcy);
+  if (t < 0.99) drawCopyIcon(ink, 1 - t, bs * (1 - 0.35 * t));
+  if (c.copyT.x > 0.01) {
+    const k = bs * (0.55 + 0.45 * c.copyT.x);
+    ctx.beginPath(); ctx.moveTo(-7 * k, 0.6 * k); ctx.lineTo(-2.6 * k, 5 * k); ctx.lineTo(7 * k, -4.6 * k);
+    ctx.strokeStyle = col(ink, t); ctx.lineWidth = 2; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.stroke();
+  }
+  ctx.restore();
+
+  txt(c.name, 24, 298, 18, P.ink, 1, "left", -0.2, 700);
+  txt(c.hexText, 24, 319, 12.5, P.muted);
+  const chipX = C.w - 22 - c.chipW;
+  fillRR(chipX, 283, c.chipW, 38, 19, P.chip, 1);
+  fillRR(chipX + 15, 296, 12, 12, 4, c.rgb, 1);
+  txt(c.chip, chipX + 34, 306.6, 13, P.onchip, 1, "left", 0, 600);
+  ctx.restore();
+}
+function drawSun(c, rotDeg, sc) {
+  ctx.save(); ctx.rotate(rotDeg * Math.PI / 180); ctx.scale(sc, sc);
+  ctx.strokeStyle = col(c); ctx.lineWidth = 1.5 / sc; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.arc(0, 0, 4.2, 0, Math.PI * 2); ctx.stroke();
+  for (let i = 0; i < 8; i++) {
+    const a = i * Math.PI / 4;
+    ctx.beginPath(); ctx.moveTo(Math.cos(a) * 7.3, Math.sin(a) * 7.3); ctx.lineTo(Math.cos(a) * 9.5, Math.sin(a) * 9.5); ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawMoon(c, rotDeg, sc) {
+  ctx.save(); ctx.rotate(rotDeg * Math.PI / 180); ctx.scale(sc, sc);
+  ctx.strokeStyle = col(c); ctx.lineWidth = 1.5 / sc; ctx.lineJoin = "round";
+  // crescent: outer disc minus a bite at the upper right
+  const r1 = 7.8, bx = 4.4, by = -4.4, r2 = 6.4, d = Math.hypot(bx, by);
+  const a = (r1 * r1 - r2 * r2 + d * d) / (2 * d), h = Math.sqrt(Math.max(0, r1 * r1 - a * a));
+  const mx = bx * a / d, my = by * a / d, px = -by / d, py = bx / d;
+  const p1 = [mx + h * px, my + h * py], p2 = [mx - h * px, my - h * py];
+  const t1 = Math.atan2(p1[1], p1[0]), t2 = Math.atan2(p2[1], p2[0]);
+  const f1 = Math.atan2(p1[1] - by, p1[0] - bx), f2 = Math.atan2(p2[1] - by, p2[0] - bx);
+  ctx.beginPath(); ctx.arc(0, 0, r1, t1, t2, false); ctx.arc(bx, by, r2, f2, f1, true); ctx.closePath(); ctx.stroke();
+  ctx.restore();
+}
+function drawHeader(P) {
+  GA = 1;
+  const pulse = 1 + 0.18 * (0.5 + 0.5 * Math.sin(S.time * 5.2)) * S.gLook.x;
+  fillRR(29 - 5 * pulse, 37 - 5 * pulse, 10 * pulse, 10 * pulse, 3 * pulse, [S.live[0].x, S.live[1].x, S.live[2].x], 1);
+  txt("Spectra", 44, 45.5, 22, P.ink, 1, "left", -0.4, 700);
+  const sub = S.stage === "summary" ? "RESULTS" : "ROUND " + Math.max(1, S.round) + " / " + RUN_LENGTH;
+  txt(sub, 24, 70, 12, P.muted, 1, "left", 0.8, 600);
+  if (S.challenge) txt("VS " + S.challenge.name.toUpperCase(), 24 + tw(sub, 12, 0.8, 600) + 16, 70, 12, P.ink, 1, "left", 0.8, 600);
+
+  const sg = L.seg;
+  fillRR(sg.x, sg.y, sg.w, sg.h, sg.h / 2, P.surface, 1);
+  ring(sg.x + 0.5, sg.y + 0.5, sg.w - 1, sg.h - 1, sg.h / 2, P.ink, P.ringA);
+  fillRR(S.segX.x, sg.y + 4, 40, 34, 17, P.chip, 1);
+  const slots = [sg.x + 4, sg.x + 47], names = ["light", "dark"];
+  for (let i = 0; i < 2; i++) {
+    const on = clamp(1 - Math.abs(S.segX.x - slots[i]) / 43, 0, 1);
+    const c = mix3(P.muted, P.onchip, on);
+    const sc = S.segPress[i].x * 17 / 24;
+    ctx.save(); ctx.translate(slots[i] + 20, sg.y + 21);
+    if (i === 0) drawSun(c, S.sunRot.x, sc); else drawMoon(c, S.moonRot.x, sc);
+    ctx.restore();
+  }
+  txt("TURINOZ", 24, L.footer, 11.5, P.muted, 1, "left", 0.9, 600);
+  txt("OKLAB SCORED", W - 24, L.footer, 11.5, P.muted, 1, "right", 0.9, 600);
+}
+function drawButton(P) {
+  const v = S.btnVis.x; if (v <= 0.004) return;
+  GA = v;
+  const b = L.button, w = Math.max(b.h, S.btnW.x), sc = S.btnScale.x;
+  ctx.save();
+  ctx.translate(b.cx, b.cy + (1 - v) * 10); ctx.scale(sc, sc); ctx.translate(-w / 2, -b.h / 2);
+  rr(0, 0, w, b.h, b.h / 2); ctx.fillStyle = col(P.chip); ctx.fill(); ctx.clip();
+  const sw = S.btnSwap.x, base = b.h / 2 + 5.8;
+  if (sw < 0.999 && S.btnPrev) txt(S.btnPrev, w / 2, base - 8 * sw, 16, P.onchip, 1 - sw, "center", 0, 600);
+  txt(S.btnLabel, w / 2, base + 8 * (1 - sw), 16, P.onchip, sw, "center", 0, 600);
+  ctx.restore();
+}
+function drawSummary(P) {
+  const g = S.gSummary.x; if (g <= 0.004 || !S.run || S.run.scores.length < RUN_LENGTH) return;
+  GA = g;
+  const Z = L.sum, rx = L.rx, rw = L.rw, ch = S.challenge;
+  ctx.save(); ctx.translate(0, (1 - g) * 14);
+  const mine = round(S.scoreShown.x * 100);
+  if (ch) {
+    const theirs = round(avgOf(ch.scores) * 100), finalMine = round(avgOf(S.run.scores) * 100), d = finalMine - theirs;
+    const head = d > 0 ? "You win" : d < 0 ? ch.name + " wins" : "Dead heat";
+    txt(head.toUpperCase(), rx, Z.label, 12, P.muted, 1, "left", 0.8, 600);
+    txt(mine + "%", rx, Z.score, 72, P.ink, 1, "left", -2.5, 700);
+    txt(theirs + "%", rx + rw, Z.score, 72, P.muted, 1, "right", -2.5, 700);
+    txt("YOU", rx, Z.score + 28, 12, P.muted, 1, "left", 0.8, 600);
+    txt(ch.name.toUpperCase(), rx + rw, Z.score + 28, 12, P.muted, 1, "right", 0.8, 600);
+  } else {
+    txt("THREE COLOURS", rx, Z.label, 12, P.muted, 1, "left", 0.8, 600);
+    txt(mine + "%", rx, Z.score, 80, P.ink, 1, "left", -3, 700);
+    let verdict = VERDICTS[VERDICTS.length - 1][1];
+    for (const v of VERDICTS) if (avgOf(S.run.scores) >= v[0]) { verdict = v[1]; break; }
+    txt(verdict, rx + rw, Z.score, 14, P.muted, 1, "right", 0.8, 600);
+  }
+  rect(rx, Z.rows - 22, rw, 1, P.ink, P.ringA * 1.4);
+
+  // column heads
+  const colX = ch ? [rx + rw - 124, rx + rw - 48] : [rx + rw - 48];
+  const heads = ch ? ["YOU", Array.from(ch.name.toUpperCase()).slice(0, 7).join("")] : ["YOU"];
+  heads.forEach((h, k) => txt(h, colX[k] + 24, Z.rows - 2, 10.5, P.muted, 1, "center", 0.8, 600));
+
+  for (let i = 0; i < RUN_LENGTH; i++) {
+    const t = S.sumRow[i].x; if (t <= 0.004) continue;
+    GA = g * clamp(t, 0, 1);
+    const top = Z.rows + 14 + i * Z.rowH + (1 - t) * 12;
+    const c = COLOURS[S.run.picks[i]], rgb = c.slice(1);
+    fillRR(rx, top, 72, 72, 18, rgb, 1); ring(rx + 0.5, top + 0.5, 71, 71, 18, P.ink, P.ringA);
+    txt(c[0], rx + 88, top + 32, 18, P.ink, 1, "left", -0.2, 700);
+    txt(hex(rgb), rx + 88, top + 53, 12.5, P.muted);
+    const cols = ch ? [[S.run.guesses[i], S.run.scores[i]], [ch.guesses[i], ch.scores[i]]] : [[S.run.guesses[i], S.run.scores[i]]];
+    cols.forEach(([gc, sc], k) => {
+      const x = colX[k];
+      fillRR(x, top + 4, 48, 40, 12, gc, 1); ring(x + 0.5, top + 4.5, 47, 39, 12, P.ink, P.ringA);
+      const win = ch && ((k === 0 && sc > cols[1][1]) || (k === 1 && sc > cols[0][1]));
+      txt(round(sc * 100) + "%", x + 24, top + 66, 14, win || !ch ? P.ink : P.muted, 1, "center", 0, win ? 700 : 600);
+    });
+  }
+  ctx.restore();
+}
+function drawButton2(P) {
+  const v = S.btn2Vis.x; if (v <= 0.004) return;
+  GA = v;
+  const b = L.button2, sc = S.btn2Scale.x;
+  ctx.save(); ctx.translate(b.cx, b.cy + (1 - v) * 10); ctx.scale(sc, sc);
+  ring(-b.w / 2 + 0.75, -b.h / 2 + 0.75, b.w - 1.5, b.h - 1.5, b.h / 2, P.ink, 0.22, 1.5);
+  txt("Play again", 0, 5.8, 16, P.ink, 1, "center", 0, 600);
+  ctx.restore();
+}
+function drawToast(P) {
+  const a = S.toast.x; if (a <= 0.004 || !S.toastText) return;
+  GA = a;
+  const w = tw(S.toastText, 13.5, 0, 600) + 32, y = L.card.y - 64 + (1 - a) * 8;
+  fillRR(W / 2 - w / 2, y, w, 34, 17, P.chip, 1);
+  txt(S.toastText, W / 2, y + 22, 13.5, P.onchip, 1, "center", 0, 600);
+}
+function draw() {
+  const P = S.pal;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  GA = 1;
+  ctx.fillStyle = col(P.ground); ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.setTransform(scale * dpr, 0, 0, scale * dpr, offX * dpr, offY * dpr);
+
+  drawLeft(P);
+  if (S.challenge) drawHeading(P, S.gIntro.x, "Challenge", S.challenge.name + " scored " + round(avgOf(S.challenge.scores) * 100) + "% on three colours.", "Same colours, same two seconds. Beat it.");
+  else drawHeading(P, S.gIntro.x, "Ready", "Three colours, two seconds each.", "Rebuild each one from memory.");
+  drawHeading(P, S.gLook.x, "Look", "Hold it in your eye. In a moment", "you rebuild it from nothing.");
+  drawRails(P);
+  drawResult(P);
+  const sa = S.scrim.x;
+  if (sa > 0.004) { GA = sa; rect(-offX / scale, -offY / scale, canvas.width / dpr / scale + 2, canvas.height / dpr / scale + 2, P.ground, 0.93); }
+  for (const c of S.cards) drawCard(P, c);
+  drawSummary(P);
+  drawHeader(P);
+  drawButton2(P);
+  drawButton(P);
+  drawToast(P);
+  GA = 1;
+  const bg = hex(P.ground);
+  if (document.documentElement.style.getPropertyValue("--bg") !== bg) document.documentElement.style.setProperty("--bg", bg);
+}
+
+// ---- boot ------------------------------------------------------------------------------
+updatePalette();
+resize();
+S.challenge = readChallenge();
+if (S.challenge) startRun(S.challenge.picks.slice());
+setButton(S.challenge ? "Accept" : "Start", true);
+const startMode = (tg && tg.colorScheme) || (window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+if (startMode === "light") setTheme("light", true); else paintChrome("dark");
+if (tg) try { tg.onEvent("themeChanged", () => setTheme(tg.colorScheme === "light" ? "light" : "dark")); } catch (e) {}
+
+let last = performance.now();
+function frame(now) {
+  advance((now - last) / 1000); last = now;
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

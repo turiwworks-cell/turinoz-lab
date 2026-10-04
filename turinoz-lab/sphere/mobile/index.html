@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-EPXGLQJL44"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', 'G-EPXGLQJL44');
+  </script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Interactive Sphere</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css?v=3">
+  <script>if(location.protocol==='file:')document.write('<script src="vendor/file-mode.js"><\/script>')</script>
+  <script defer src="vendor/rive.js"></script>
+  <script defer src="app.js?v=3"></script>
+</head>
+<body>
+  <canvas id="rive" width="1600" height="1200" aria-label="Interactive sphere. Drag to rotate, release to throw, or hold to compress."></canvas>
+  <div id="surface" aria-label="Interactive sphere surface"></div>
+  <div id="cursor" aria-hidden="true"><i></i></div>
+  <div id="hint" role="status" aria-live="polite"></div>
+  <div id="loading" role="status" aria-label="Preparing sphere"></div>
+  <div id="floating-controls"></div>
+  <aside id="panel" class="floating-panel" aria-label="Colors and switches">
+    <header class="panel-handle"><strong>Colors &amp; switches</strong><span class="grip" aria-hidden="true">⋮⋮</span></header>
+    <div id="controls"></div>
+  </aside>
+  <aside id="record-panel" class="floating-panel" aria-label="Recording and presentation">
+    <header class="panel-handle"><strong>Recording</strong><span class="grip" aria-hidden="true">⋮⋮</span></header>
+    <p id="status" role="status">Loading Rive…</p>
+    <button id="record" class="record-button">Record master <kbd>R</kbd></button>
+    <div class="record-options">
+      <label><input id="record-cursor" type="checkbox">Cursor in video</label>
+      <label><input id="record-controls" type="checkbox">Controls in video</label>
+    </div>
+    <p id="record-detail">1600 × 1200 · up to 60 fps · 64 Mb/s target</p>
+    <footer><button id="hide">Hide <kbd>H</kbd></button><button id="clean">Clean <kbd>K</kbd></button><button id="fullscreen">Fullscreen <kbd>F</kbd></button></footer>
+    <p class="shortcut-note">H show/hide · O 50% · C reset layout</p>
+  </aside>
+</body>
+</html>

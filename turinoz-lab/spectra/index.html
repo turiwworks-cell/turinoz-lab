@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <!-- Phones get the mobile version -->
+  <script>if(/iPhone|iPod|Android.+Mobile/i.test(navigator.userAgent)||(matchMedia('(pointer: coarse)').matches&&Math.min(screen.width,screen.height)<768))location.replace('mobile/'+location.search+location.hash)</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spectra</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="stage" aria-label="Spectra"></canvas>
+
+<div class="bar" id="bar">
+  <button id="rec" type="button" title="Record (R)" disabled><span class="dot"></span><span id="recLabel">Record</span></button>
+  <span class="readout" id="time">00:00</span>
+  <span class="readout" id="meta" aria-live="polite"></span>
+  <button id="toggle" type="button" title="Hide controls (H)">Hide</button>
+</div>
+
+<script src="vendor/rive.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

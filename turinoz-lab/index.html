@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>TURINOZ / LAB</title>
+  <meta name="description" content="Interactive Rive and motion experiments by TURINOZ.">
+  <meta name="theme-color" content="#0d0d0c">
+  <meta name="color-scheme" content="dark">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="TURINOZ / LAB">
+  <meta property="og:title" content="TURINOZ / LAB">
+  <meta property="og:description" content="Interactive experiments in motion, code and Rive.">
+  <meta property="og:url" content="https://lab.turinoz.co/">
+  <meta property="og:image" content="https://lab.turinoz.co/assets/img/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+  <link rel="preload" href="assets/fonts/mona-sans-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="assets/css/lab.css?v=4">
+  <link rel="expect" href="#lab-ready" blocking="render">
+  <script>document.documentElement.className+=' js'+(matchMedia('(prefers-reduced-motion: reduce)').matches?'':' motion-ok')</script>
+</head>
+<body data-page="home">
+  <div id="app"></div>
+  <noscript><p style="padding:24px">TURINOZ / LAB needs JavaScript to show the experiments. Visit <a href="https://turinoz.co">turinoz.co</a>.</p></noscript>
+  <script src="assets/js/projects.js?v=5"></script>
+  <script src="assets/js/lab.js?v=4"></script>
+  <div id="lab-ready"></div>
+</body>
+</html>
